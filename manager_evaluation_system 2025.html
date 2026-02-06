@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manager Evaluation System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const evaluationCategories = {
+            "Time Management & Productivity": [
+                "Overall Effectiveness",
+                "Task Prioritization",
+                "Completion Ahead of Schedule",
+                "Handling Distractions"
+            ],
+            "Adaptability & Learning": [
+                "Adapting to Challenges",
+                "Learning New Skills Quickly",
+                "Response to Changes",
+                "Openness to Feedback"
+            ],
+            "Initiative & Proactivity": [
+                "Taking Initiative",
+                "Identifying Opportunities",
+                "Impact of Initiatives",
+                "Motivation for Additional Responsibilities"
+            ],
+            "Quality of Work": [
+                "Consistency in Quality",
+                "Attention to Detail",
+                "Meeting Quality Standards",
+                "Responsiveness to Feedback"
+            ],
+            "Attitude & Professionalism": [
+                "Overall Attitude",
+                "Professionalism and Conduct",
+                "Contribution to Positive Environment",
+                "Handling Conflicts"
+            ],
+            "Reliability & Accountability": [
+                "Punctuality",
+                "Meeting Deadlines",
+                "Dependability in Critical Situations"
+            ],
+            "Teamwork & Collaboration": [
+                "Collaboration Effectiveness",
+                "Working Well with Others",
+                "Contributions to Team",
+                "Resolving Differences"
+            ]
+        };
+
+        const employees = [
+            "Krishnaveni",
+            "Dhiya",
+            "Moorthy",
+            "Sundar",
+            "Anuragh",
+            "Aditya",
+            "Divya",
+            "Christina",
+            "Poornima",
+            "Vishva"
+        ];
+
+        const managers = ["Naanci", "Sri", "Lakshmi"];
+
+        function ManagerEvaluationSystem() {
+            const [currentManager, setCurrentManager] = useState("");
+            const [currentEmployee, setCurrentEmployee] = useState("");
+            const [evaluations, setEvaluations] = useState({});
+            const [showSuccess, setShowSuccess] = useState(false);
+
+            // Initialize evaluations structure
+            useEffect(() => {
+                const initEvals = {};
+                managers.forEach(manager => {
+                    initEvals[manager] = {};
+                    employees.forEach(employee => {
+                        initEvals[manager][employee] = {};
+                        Object.values(evaluationCategories).flat().forEach(criterion => {
+                            initEvals[manager][employee][criterion] = 0;
+                        });
+                    });
+                });
+                setEvaluations(initEvals);
+            }, []);
+
+            const handleRatingChange = (criterion, rating) => {
+                if (!currentManager || !currentEmployee) return;
+                
+                setEvaluations(prev => ({
+                    ...prev,
+                    [currentManager]: {
+                        ...prev[currentManager],
+                        [currentEmployee]: {
+                            ...prev[currentManager][currentEmployee],
+                            [criterion]: rating
+                        }
+                    }
+                }));
+            };
+
+            const saveEvaluation = () => {
+                setShowSuccess(true);
+                setTimeout(() => setShowSuccess(false), 3000);
+                
+                // Move to next employee
+                const currentIndex = employees.indexOf(currentEmployee);
+                if (currentIndex < employees.length - 1) {
+                    setCurrentEmployee(employees[currentIndex + 1]);
+                } else {
+                    setCurrentEmployee("");
+                }
+            };
+
+            const exportToExcel = () => {
+                const wb = XLSX.utils.book_new();
+
+                managers.forEach(manager => {
+                    const data = [];
+                    
+                    // Header row
+                    const headers = ["Manager Name", "Employee Name", ...Object.values(evaluationCategories).flat()];
+                    data.push(headers);
+
+                    // Data rows
+                    employees.forEach(employee => {
+                        const row = [
+                            manager,
+                            employee,
+                            ...Object.values(evaluationCategories).flat().map(criterion => 
+                                evaluations[manager]?.[employee]?.[criterion] || 0
+                            )
+                        ];
+                        data.push(row);
+                    });
+
+                    const ws = XLSX.utils.aoa_to_sheet(data);
+                    
+                    // Set column widths
+                    const colWidths = [{ wch: 15 }, { wch: 15 }, ...Array(headers.length - 2).fill({ wch: 12 })];
+                    ws['!cols'] = colWidths;
+
+                    XLSX.utils.book_append_sheet(wb, ws, manager);
+                });
+
+                XLSX.writeFile(wb, "Manager_Evaluations_Complete.xlsx");
+            };
+
+            const exportManagerData = (manager) => {
+                const wb = XLSX.utils.book_new();
+                const data = [];
+                
+                const headers = ["Manager Name", "Employee Name", ...Object.values(evaluationCategories).flat()];
+                data.push(headers);
+
+                employees.forEach(employee => {
+                    const row = [
+                        manager,
+                        employee,
+                        ...Object.values(evaluationCategories).flat().map(criterion => 
+                            evaluations[manager]?.[employee]?.[criterion] || 0
+                        )
+                    ];
+                    data.push(row);
+                });
+
+                const ws = XLSX.utils.aoa_to_sheet(data);
+                const colWidths = [{ wch: 15 }, { wch: 15 }, ...Array(headers.length - 2).fill({ wch: 12 })];
+                ws['!cols'] = colWidths;
+
+                XLSX.utils.book_append_sheet(wb, ws, manager);
+                XLSX.writeFile(wb, `${manager}_Evaluations.xlsx`);
+            };
+
+            const getCompletionStatus = (manager) => {
+                if (!evaluations[manager]) return { completed: 0, total: employees.length };
+                
+                let completed = 0;
+                employees.forEach(employee => {
+                    const ratings = Object.values(evaluations[manager][employee] || {});
+                    if (ratings.some(r => r > 0)) completed++;
+                });
+                
+                return { completed, total: employees.length };
+            };
+
+            const isEmployeeCompleted = (manager, employee) => {
+                if (!evaluations[manager]?.[employee]) return false;
+                const ratings = Object.values(evaluations[manager][employee]);
+                return ratings.every(r => r > 0);
+            };
+
+            return (
+                <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+                    {/* Header */}
+                    <div className="bg-white shadow-md border-b border-gray-200">
+                        <div className="max-w-7xl mx-auto px-6 py-4">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h1 className="text-3xl font-bold text-gray-900">Employee Evaluation System</h1>
+                                    <p className="text-sm text-gray-600 mt-1">Performance Assessment Portal</p>
+                                </div>
+                                <button
+                                    onClick={exportToExcel}
+                                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-md font-semibold flex items-center gap-2"
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Download All Data
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="max-w-7xl mx-auto px-6 py-8">
+                        {/* Manager Selection */}
+                        {!currentManager && (
+                            <div className="space-y-6">
+                                <div className="text-center mb-8">
+                                    <h2 className="text-2xl font-bold text-gray-800 mb-2">Select Your Manager Profile</h2>
+                                    <p className="text-gray-600">Choose your name to begin evaluations</p>
+                                </div>
+                                
+                                <div className="grid md:grid-cols-3 gap-6">
+                                    {managers.map(manager => {
+                                        const { completed, total } = getCompletionStatus(manager);
+                                        const percentage = Math.round((completed / total) * 100);
+                                        
+                                        return (
+                                            <div key={manager} className="bg-white rounded-xl shadow-lg hover:shadow-xl transition p-6 border border-gray-200">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-xl">
+                                                            {manager.charAt(0)}
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="text-xl font-bold text-gray-900">{manager}</h3>
+                                                            <p className="text-sm text-gray-500">Manager</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="mb-4">
+                                                    <div className="flex justify-between text-sm mb-2">
+                                                        <span className="text-gray-600">Progress</span>
+                                                        <span className="font-semibold text-gray-900">{completed}/{total} employees</span>
+                                                    </div>
+                                                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                                        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2.5 rounded-full transition-all" style={{ width: `${percentage}%` }}></div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <button
+                                                        onClick={() => setCurrentManager(manager)}
+                                                        className="w-full px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-semibold"
+                                                    >
+                                                        Start Evaluations
+                                                    </button>
+                                                    <button
+                                                        onClick={() => exportManagerData(manager)}
+                                                        className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm"
+                                                    >
+                                                        Export {manager}'s Data
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Employee Selection */}
+                        {currentManager && !currentEmployee && (
+                            <div className="space-y-6">
+                                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+                                    <button
+                                        onClick={() => setCurrentManager("")}
+                                        className="text-indigo-600 hover:text-indigo-800 font-semibold mb-4 flex items-center gap-2"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                        </svg>
+                                        Back to Manager Selection
+                                    </button>
+                                    
+                                    <h2 className="text-2xl font-bold text-gray-800 mb-2">Welcome, {currentManager}</h2>
+                                    <p className="text-gray-600 mb-6">Select an employee to evaluate</p>
+
+                                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {employees.map(employee => {
+                                            const completed = isEmployeeCompleted(currentManager, employee);
+                                            
+                                            return (
+                                                <button
+                                                    key={employee}
+                                                    onClick={() => setCurrentEmployee(employee)}
+                                                    className={`p-4 rounded-lg border-2 transition text-left ${
+                                                        completed 
+                                                            ? 'bg-green-50 border-green-300 hover:border-green-400' 
+                                                            : 'bg-white border-gray-200 hover:border-indigo-400'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold ${
+                                                                completed ? 'bg-green-500' : 'bg-gray-400'
+                                                            }`}>
+                                                                {employee.charAt(0)}
+                                                            </div>
+                                                            <span className="font-semibold text-gray-900">{employee}</span>
+                                                        </div>
+                                                        {completed && (
+                                                            <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                                            </svg>
+                                                        )}
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Evaluation Form */}
+                        {currentManager && currentEmployee && (
+                            <div className="space-y-6">
+                                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+                                    <button
+                                        onClick={() => setCurrentEmployee("")}
+                                        className="text-indigo-600 hover:text-indigo-800 font-semibold mb-4 flex items-center gap-2"
+                                    >
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                        </svg>
+                                        Back to Employee List
+                                    </button>
+                                    
+                                    <div className="flex items-center justify-between mb-6">
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-gray-900">Evaluating: {currentEmployee}</h2>
+                                            <p className="text-sm text-gray-600 mt-1">Manager: {currentManager}</p>
+                                        </div>
+                                        <div className="px-4 py-2 bg-blue-100 rounded-lg">
+                                            <p className="text-sm font-semibold text-blue-800">Rating Scale: 1 (Poor) - 5 (Excellent)</p>
+                                        </div>
+                                    </div>
+
+                                    {showSuccess && (
+                                        <div className="mb-6 p-4 bg-green-100 border border-green-400 rounded-lg flex items-center gap-3">
+                                            <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                            </svg>
+                                            <span className="text-green-800 font-semibold">Evaluation saved successfully!</span>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-6">
+                                        {Object.entries(evaluationCategories).map(([category, criteria]) => (
+                                            <div key={category} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                                                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                                    <div className="w-2 h-6 bg-indigo-600 rounded"></div>
+                                                    {category}
+                                                </h3>
+                                                
+                                                <div className="space-y-4">
+                                                    {criteria.map(criterion => {
+                                                        const currentRating = evaluations[currentManager]?.[currentEmployee]?.[criterion] || 0;
+                                                        
+                                                        return (
+                                                            <div key={criterion} className="bg-white p-4 rounded-lg border border-gray-200">
+                                                                <label className="block text-sm font-semibold text-gray-700 mb-3">
+                                                                    {criterion}
+                                                                </label>
+                                                                <div className="flex gap-2">
+                                                                    {[1, 2, 3, 4, 5].map(rating => (
+                                                                        <button
+                                                                            key={rating}
+                                                                            onClick={() => handleRatingChange(criterion, rating)}
+                                                                            className={`flex-1 py-3 px-4 rounded-lg font-semibold transition ${
+                                                                                currentRating === rating
+                                                                                    ? 'bg-indigo-600 text-white shadow-lg scale-105'
+                                                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                                            }`}
+                                                                        >
+                                                                            {rating}
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="mt-8 flex gap-4">
+                                        <button
+                                            onClick={saveEvaluation}
+                                            className="flex-1 px-8 py-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-bold text-lg shadow-lg"
+                                        >
+                                            Save & Continue to Next Employee
+                                        </button>
+                                        <button
+                                            onClick={() => exportManagerData(currentManager)}
+                                            className="px-8 py-4 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-bold shadow-lg"
+                                        >
+                                            Export My Data
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<ManagerEvaluationSystem />, document.getElementById('root'));
+    </script>
+</body>
+</html>
